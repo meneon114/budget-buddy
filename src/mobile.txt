@@ -1,0 +1,756 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { LineChart, Line, XAxis, Tooltip, ResponsiveContainer, YAxis, CartesianGrid } from 'recharts';
+import { DollarSign, TrendingUp, Download, Ghost, X, Check, Plus, History, ArrowLeft, Trash2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// --- UTILS ---
+const formatCurrency = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+
+const getDaysInMonth = () => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+};
+
+const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+// --- COMPONENT: THE MOCHI CAT (SVG/CSS ANIMATED) ---
+const MochiCat = ({ mood }) => {
+  // Variants for animation
+  const containerVariants = {
+    HAPPY: { y: [0, -20, 0], rotate: [0, -5, 5, 0], transition: { repeat: Infinity, duration: 0.6 } },
+    EUPHORIC: { y: [0, -40, 0], scale: [1, 1.2, 1], rotate: [0, -10, 10, 0], transition: { repeat: Infinity, duration: 0.4 } }, // New Euphoric State
+    SAD: { y: 10, rotate: 0, scaleY: 0.95 },
+    ANXIOUS: { x: [-2, 2, -2], transition: { repeat: Infinity, duration: 0.2 } },
+    PANIC: { scale: [1, 1.1, 1], rotate: [-5, 5, -5], transition: { repeat: Infinity, duration: 0.3 } },
+    DEAD: { opacity: 1, y: -20 },
+    BEGGING: { rotate: 10, y: 5 }
+  };
+
+  const eyeVariants = {
+    HAPPY: { scaleY: 1, scaleX: 1 },
+    EUPHORIC: { scale: 1.2 },
+    SAD: { scaleY: 0.5, rotate: -10 },
+    ANXIOUS: { scaleY: 1.2 },
+    PANIC: { scale: 1.5 },
+    DEAD: { scaleY: 0.1 },
+    BEGGING: { scale: 1.3 }
+  };
+
+  const renderEyes = () => {
+    if (mood === 'DEAD') {
+      return (
+        <g fill="none" stroke="#333" strokeWidth="3">
+          <path d="M25,35 L35,45 M35,35 L25,45" />
+          <path d="M65,35 L75,45 M75,35 L65,45" />
+        </g>
+      );
+    }
+    
+    // Euphoric Eyes (Hearts)
+    if (mood === 'EUPHORIC') {
+        return (
+            <g fill="#FF6B6B">
+                <path d="M25,45 C20,35 15,45 25,52 C35,45 30,35 25,45" />
+                <path d="M75,45 C70,35 65,45 75,52 C85,45 80,35 75,45" />
+            </g>
+        );
+    }
+
+    // Happy Eyes (Inverted Arcs)
+    if (mood === 'HAPPY') {
+        return (
+            <g fill="none" stroke="#121212" strokeWidth="3">
+                <path d="M25,45 Q30,35 35,45" />
+                <path d="M65,45 Q70,35 75,45" />
+            </g>
+        );
+    }
+
+    return (
+      <motion.g variants={eyeVariants} animate={mood}>
+        <circle cx="30" cy="40" r={mood === 'BEGGING' ? 8 : 5} fill="#121212" />
+        <circle cx="70" cy="40" r={mood === 'BEGGING' ? 8 : 5} fill="#121212" />
+        {mood === 'BEGGING' && (
+          <>
+            <circle cx="32" cy="38" r="3" fill="white" />
+            <circle cx="72" cy="38" r="3" fill="white" />
+          </>
+        )}
+      </motion.g>
+    );
+  };
+
+  const renderMouth = () => {
+    if (mood === 'HAPPY') return <path d="M45,55 Q50,65 55,55" fill="none" stroke="#121212" strokeWidth="2" />;
+    if (mood === 'EUPHORIC') return <path d="M40,60 Q50,75 60,60" fill="none" stroke="#121212" strokeWidth="3" />; // Big open smile
+    if (mood === 'SAD') return <path d="M40,60 Q50,50 60,60" fill="none" stroke="#121212" strokeWidth="2" />; // Inverted frown
+    if (mood === 'ANXIOUS') return <path d="M45,60 Q50,55 55,60" fill="none" stroke="#121212" strokeWidth="2" />;
+    if (mood === 'PANIC') return <circle cx="50" cy="60" r="8" fill="#121212" />; // Screaming mouth
+    if (mood === 'DEAD') return <path d="M40,60 L60,60" fill="none" stroke="#121212" strokeWidth="2" />;
+    if (mood === 'BEGGING') return <path d="M48,58 Q50,60 52,58" fill="none" stroke="#121212" strokeWidth="2" />;
+    return <path d="M45,55 Q50,60 55,55" fill="none" stroke="#121212" strokeWidth="2" />;
+  };
+
+  const getBodyColor = () => {
+    if (mood === 'PANIC') return '#FF6B6B'; // Reddish
+    if (mood === 'DEAD') return '#E0E0E0';  // Pale
+    if (mood === 'ANXIOUS') return '#FFD93D'; // Yellowish
+    if (mood === 'SAD') return '#A0AEC0'; // Grayish Blue
+    if (mood === 'HAPPY') return '#68D391'; // Slight Green Tint
+    if (mood === 'EUPHORIC') return '#F687B3'; // Pinkish
+    return '#FFFFFF'; // White
+  };
+
+  return (
+    <div className="relative w-48 h-48 flex justify-center items-center">
+      {mood === 'DEAD' && (
+        <motion.div 
+          animate={{ y: -50, opacity: 0 }} 
+          transition={{ duration: 2, repeat: Infinity }}
+          className="absolute top-0"
+        >
+          <Ghost size={40} className="text-gray-500" />
+        </motion.div>
+      )}
+
+      {mood === 'PANIC' && (
+        <motion.div 
+          animate={{ y: [0, 20], opacity: [1, 0] }} 
+          transition={{ repeat: Infinity, duration: 0.5 }}
+          className="absolute top-10 right-10"
+        >
+          <div className="w-2 h-4 bg-blue-300 rounded-full" />
+        </motion.div>
+      )}
+
+      {mood === 'EUPHORIC' && (
+        <motion.div 
+          animate={{ scale: [1, 1.5, 1], opacity: [0, 1, 0] }} 
+          transition={{ repeat: Infinity, duration: 1 }}
+          className="absolute top-0 right-10"
+        >
+            <div className="text-2xl">✨</div>
+        </motion.div>
+      )}
+
+      <motion.svg
+        width="160"
+        height="160"
+        viewBox="0 0 100 100"
+        variants={containerVariants}
+        animate={mood}
+      >
+        <path d="M20,30 L20,10 L40,25 Z" fill={getBodyColor()} stroke="#121212" strokeWidth="2" />
+        <path d="M80,30 L80,10 L60,25 Z" fill={getBodyColor()} stroke="#121212" strokeWidth="2" />
+        <ellipse cx="50" cy="55" rx="40" ry="35" fill={getBodyColor()} stroke="#121212" strokeWidth="3" />
+        {renderEyes()}
+        {renderMouth()}
+        <circle cx="25" cy="50" r="5" fill="#FFC0CB" opacity="0.6" />
+        <circle cx="75" cy="50" r="5" fill="#FFC0CB" opacity="0.6" />
+        <path d="M15,50 L5,45" stroke="#121212" strokeWidth="1" />
+        <path d="M15,55 L5,55" stroke="#121212" strokeWidth="1" />
+        <path d="M85,50 L95,45" stroke="#121212" strokeWidth="1" />
+        <path d="M85,55 L95,55" stroke="#121212" strokeWidth="1" />
+        {mood === 'BEGGING' && (
+           <path d="M35,75 Q50,85 65,75" fill="none" stroke="#121212" strokeWidth="3" />
+        )}
+      </motion.svg>
+    </div>
+  );
+};
+
+// --- MAIN APP COMPONENT ---
+const App = () => {
+  // --- STATE ---
+  const [appState, setAppState] = useState('ONBOARDING'); // ONBOARDING | DASHBOARD | TRANSACTIONS
+  
+  // Inputs
+  const [income, setIncome] = useState('');
+  const [savingsTarget, setSavingsTarget] = useState('');
+  
+  // Core Data
+  const [dailyBudgetLimit, setDailyBudgetLimit] = useState(0);
+  const [transactions, setTransactions] = useState([]); // { id, date, amount, type, desc }
+  const [streak, setStreak] = useState(0);
+
+  // Interaction State
+  const [inputType, setInputType] = useState(null); // 'EXPENSE' | 'INCOME' | null
+  const [amountInput, setAmountInput] = useState('');
+  const [descInput, setDescInput] = useState('');
+  const [catMood, setCatMood] = useState('HAPPY');
+  const [moodOverride, setMoodOverride] = useState(null); // To hold temporary states like EUPHORIC
+  const [notification, setNotification] = useState(null);
+
+  // --- DERIVED DATA ---
+  
+  // Calculate spent today based on device clock
+  // NOTE: We only sum EXPENSES here. Income is handled by recalculating the limit.
+  const spentToday = useMemo(() => {
+    const today = new Date().toDateString();
+    return transactions
+        .filter(t => new Date(t.date).toDateString() === today && t.type === 'EXPENSE')
+        .reduce((acc, t) => acc + t.amount, 0);
+  }, [transactions]);
+
+  // Aggregate for Charts
+  const chartData = useMemo(() => {
+      const grouped = {};
+      transactions.forEach(t => {
+          const day = new Date(t.date).toLocaleDateString(undefined, { weekday: 'short' });
+          if (!grouped[day]) grouped[day] = 0;
+          if (t.type === 'EXPENSE') grouped[day] += t.amount;
+      });
+      // Ensure we have at least some data points
+      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      return days.map(d => ({ day: d, spent: grouped[d] || 0 }));
+  }, [transactions]);
+
+  // --- LOGIC ---
+
+  const calculateBudget = () => {
+    const inc = parseFloat(income);
+    const save = parseFloat(savingsTarget);
+    if (!inc || isNaN(save)) {
+      showNotification("Please enter valid numbers!", "error");
+      return;
+    }
+    
+    // Logic: (Income - Savings) / Days In Current Month
+    const daysInMonth = getDaysInMonth();
+    const budget = (inc - save) / daysInMonth;
+    
+    if (budget < 0) {
+      showNotification("You're saving more than you earn?!", "error");
+      return;
+    }
+
+    setDailyBudgetLimit(budget);
+    setAppState('DASHBOARD');
+    setStreak(1); // Start streak
+  };
+
+  const showNotification = (msg, type = 'info') => {
+    setNotification({ msg, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  // --- CAT EMOTION ENGINE ---
+  useEffect(() => {
+    if (appState === 'ONBOARDING') return;
+    
+    // If there is an override (like Euphoria), ignore calculation for a bit
+    if (moodOverride) {
+        setCatMood(moodOverride);
+        return;
+    }
+
+    // Transient States (While Typing)
+    if (inputType === 'EXPENSE' && amountInput) {
+        const val = parseFloat(amountInput);
+        const projectedTotal = spentToday + val;
+        const percent = (projectedTotal / dailyBudgetLimit) * 100;
+
+        if (percent > 100) setCatMood('DEAD');
+        else if (percent > 90) setCatMood('SAD');
+        else if (percent > 75) setCatMood('PANIC');
+        else if (percent > 50) setCatMood('ANXIOUS');
+        else setCatMood('BEGGING'); // "Please don't spend it" if safe but typing
+        return;
+    }
+
+    if (inputType === 'INCOME') {
+        setCatMood('EUPHORIC'); // Happy while adding money
+        return;
+    }
+
+    // Passive States (Based on actual spend)
+    const percentUsed = (spentToday / dailyBudgetLimit) * 100;
+    
+    // Net spend can be negative if income > expenses for the day, which is good
+    if (percentUsed >= 100) setCatMood('DEAD');
+    else if (percentUsed >= 90) setCatMood('SAD'); // Hungry/Starving
+    else if (percentUsed >= 75) setCatMood('PANIC');
+    else if (percentUsed >= 50) setCatMood('ANXIOUS');
+    else setCatMood('HAPPY'); // Safe Zone (< 50% Used = > 50% Left)
+
+  }, [spentToday, dailyBudgetLimit, inputType, amountInput, appState, moodOverride]);
+
+
+  const handleTransaction = () => {
+    const val = parseFloat(amountInput);
+    if (!val || val <= 0) return;
+
+    const newTransaction = {
+        id: Date.now(),
+        date: new Date().toISOString(),
+        amount: val,
+        type: inputType,
+        description: descInput || (inputType === 'INCOME' ? 'Deposit' : 'Expense')
+    };
+
+    setTransactions(prev => [...prev, newTransaction]);
+    
+    // Logic Branching
+    if (inputType === 'INCOME') {
+        // Recalculate Daily Budget
+        const daysInMonth = getDaysInMonth();
+        const dailyIncrease = val / daysInMonth;
+        setDailyBudgetLimit(prev => prev + dailyIncrease);
+        
+        showNotification("Budget Increased! Mochi is thrilled!", "success");
+        
+        // Trigger Euphoria
+        setMoodOverride('EUPHORIC');
+        setTimeout(() => setMoodOverride(null), 4000); // Stay euphoric for 4 seconds
+    } else {
+        if (spentToday + val > dailyBudgetLimit) {
+            setStreak(0);
+            showNotification("Streak broken!", "error");
+        }
+    }
+
+    // Reset Inputs
+    setAmountInput('');
+    setDescInput('');
+    setInputType(null);
+  };
+
+  const handleDeleteTransaction = (id) => {
+    const transactionToDelete = transactions.find(t => t.id === id);
+    if (!transactionToDelete) return;
+
+    setTransactions(prev => prev.filter(t => t.id !== id));
+
+    if (transactionToDelete.type === 'INCOME') {
+        const daysInMonth = getDaysInMonth();
+        const dailyDecrease = transactionToDelete.amount / daysInMonth;
+        setDailyBudgetLimit(prev => Math.max(0, prev - dailyDecrease)); // Prevent negative budget
+        showNotification("Income removed. Budget adjusted.", "info");
+    } else {
+        showNotification("Expense removed.", "info");
+    }
+  };
+
+  const exportReport = () => {
+    const headers = ["Date", "Time", "Type", "Description", "Amount", "Daily Limit"];
+    const rows = transactions.map(t => {
+        const d = new Date(t.date);
+        return [
+            d.toLocaleDateString(),
+            d.toLocaleTimeString(),
+            t.type,
+            `"${t.description}"`, // Quote to handle commas
+            t.amount.toFixed(2),
+            dailyBudgetLimit.toFixed(2)
+        ];
+    });
+    
+    let csvContent = "data:text/csv;charset=utf-8," 
+        + headers.join(",") + "\n"
+        + rows.map(e => e.join(",")).join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Mochi_Report_${new Date().toLocaleDateString()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // --- RENDER HELPERS ---
+  const remaining = dailyBudgetLimit - spentToday;
+  const percentUsed = (spentToday / dailyBudgetLimit) * 100;
+  
+  let themeColor = 'text-cyan-400';
+  let progressColor = 'bg-cyan-400';
+  
+  if (percentUsed > 100) {
+      themeColor = 'text-gray-500'; // Dead color
+      progressColor = 'bg-gray-700';
+  } else if (percentUsed >= 90) {
+      themeColor = 'text-red-500'; // Hungry/Critical
+      progressColor = 'bg-red-500';
+  } else if (percentUsed >= 75) {
+      themeColor = 'text-orange-500'; // Panic
+      progressColor = 'bg-orange-500';
+  } else if (percentUsed >= 50) {
+      themeColor = 'text-yellow-400'; // Anxious
+      progressColor = 'bg-yellow-400';
+  }
+
+  const getDialogue = () => {
+    if (inputType === 'EXPENSE') {
+        if (catMood === 'DEAD') return "I see the light... stop...";
+        if (catMood === 'SAD') return "So hungry... don't spend...";
+        if (catMood === 'PANIC') return "NO! WE ARE BROKE! STOP!";
+        if (catMood === 'ANXIOUS') return "Do we really need this?";
+        if (catMood === 'BEGGING') return "Please... I'm saving for a boat...";
+    }
+    if (inputType === 'INCOME') return "Make it rain!";
+
+    switch(catMood) {
+      case 'EUPHORIC': return "I LOVE MONEY! YAY!";
+      case 'HAPPY': return "Purrfect! Keep saving!";
+      case 'SAD': return "My tummy rumbles... so hungry...";
+      case 'ANXIOUS': return "I'm getting nervous...";
+      case 'PANIC': return "PUT THE WALLET DOWN!";
+      case 'DEAD': return "*Ghost Noises*";
+      default: return "Meow.";
+    }
+  };
+
+  // --- STYLE OVERRIDES ---
+  // Ensuring we have standard mobile sizes regardless of screen
+  const styles = `
+    .app-container {
+        display: flex;
+        justify-content: center;
+        align-items: center; /* Center Vertically */
+        background-color: #000;
+        min-height: 100vh;
+        width: 100%;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+    .mobile-frame {
+        width: 100%;
+        max-width: 420px; /* Force Phone Width */
+        height: 85vh; /* Fixed Window Height */
+        max-height: 900px;
+        background-color: #121212;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid #333;
+        border-radius: 2rem; /* Rounded Window Corners */
+        overflow: hidden; /* Clip content to rounded corners */
+        box-shadow: 0 0 50px rgba(0,0,0,0.5); /* Desktop Shadow */
+    }
+    .scroll-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1.5rem;
+        padding-bottom: 8rem; /* Space for FABs */
+    }
+    .scroll-content::-webkit-scrollbar {
+        width: 6px;
+    }
+    .scroll-content::-webkit-scrollbar-thumb {
+        background-color: #333;
+        border-radius: 3px;
+    }
+    .btn-action {
+        padding: 1rem;
+        border-radius: 1rem;
+        font-weight: bold;
+        transition: transform 0.1s;
+    }
+    .btn-action:active { transform: scale(0.95); }
+  `;
+
+  // --- VIEW: TRANSACTIONS LIST ---
+  if (appState === 'TRANSACTIONS') {
+    return (
+      <div className="app-container">
+        <style>{styles}</style>
+        <div className="mobile-frame">
+            <div className="scroll-content">
+                <div className="flex items-center mb-8 gap-4">
+                    <button 
+                        onClick={() => setAppState('DASHBOARD')}
+                        className="p-3 bg-gray-800 rounded-full hover:bg-gray-700 transition"
+                    >
+                        <ArrowLeft size={24} className="text-gray-400" />
+                    </button>
+                    <h2 className="text-2xl font-bold text-cyan-400">History</h2>
+                </div>
+
+                <div className="space-y-4">
+                    {transactions.length === 0 ? (
+                        <div className="text-center text-gray-500 py-10">
+                            <p>No transactions yet.</p>
+                            <p className="text-sm">Feed Mochi some data!</p>
+                        </div>
+                    ) : (
+                        transactions.slice().reverse().map(t => (
+                            <motion.div 
+                                key={t.id}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="bg-gray-800 p-4 rounded-xl border border-gray-700 flex justify-between items-center"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className={`p-3 rounded-full ${t.type === 'INCOME' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                        {t.type === 'INCOME' ? <TrendingUp size={20} /> : <DollarSign size={20} />}
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-white">{t.description}</p>
+                                        <p className="text-xs text-gray-500">{new Date(t.date).toLocaleString()}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className={`font-mono font-bold text-lg ${t.type === 'INCOME' ? 'text-green-400' : 'text-red-400'}`}>
+                                        {t.type === 'INCOME' ? '+' : '-'}{formatCurrency(t.amount)}
+                                    </div>
+                                    <button 
+                                        onClick={() => handleDeleteTransaction(t.id)}
+                                        className="p-2 text-gray-500 hover:text-red-500 transition"
+                                    >
+                                        <Trash2 size={18} />
+                                    </button>
+                                </div>
+                            </motion.div>
+                        ))
+                    )}
+                </div>
+            </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- VIEW: ONBOARDING ---
+  if (appState === 'ONBOARDING') {
+    return (
+      <div className="app-container">
+        <style>{styles}</style>
+        <div className="mobile-frame" style={{ justifyContent: 'center', alignItems: 'center' }}>
+            <div className="w-full bg-gray-800 p-8 rounded-3xl shadow-2xl border border-gray-700 m-6 max-w-sm">
+                <div className="flex justify-center mb-6">
+                    <MochiCat mood="HAPPY" />
+                </div>
+                <h1 className="text-3xl font-bold mb-2 text-center text-cyan-400">Setup Frugal Feline</h1>
+                <p className="text-gray-400 text-center mb-8 text-sm">Budget = (Income - Savings) / Days in Month</p>
+                
+                <div className="space-y-6">
+                    <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Monthly Income</label>
+                        <input 
+                            type="number" 
+                            placeholder="$3000" 
+                            className="w-full p-4 mt-2 bg-gray-900 rounded-xl border border-gray-600 text-white text-lg outline-none focus:border-cyan-400 transition"
+                            onChange={(e) => setIncome(e.target.value)}
+                        />
+                    </div>
+                    
+                    <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Savings Goal</label>
+                        <input 
+                            type="number" 
+                            placeholder="$500" 
+                            className="w-full p-4 mt-2 bg-gray-900 rounded-xl border border-gray-600 text-white text-lg outline-none focus:border-cyan-400 transition"
+                            onChange={(e) => setSavingsTarget(e.target.value)}
+                        />
+                    </div>
+
+                    <button 
+                        onClick={calculateBudget}
+                        className="w-full bg-cyan-400 text-black font-bold p-4 rounded-xl hover:bg-cyan-300 transform active:scale-95 transition mt-4"
+                    >
+                        Start Tracking
+                    </button>
+                </div>
+            </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- VIEW: DASHBOARD ---
+  return (
+    <div className="app-container">
+        <style>{styles}</style>
+      
+      {/* Toast */}
+      <AnimatePresence>
+        {notification && (
+          <motion.div 
+            initial={{ y: -100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -100, opacity: 0 }}
+            className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-[200] px-6 py-3 rounded-full shadow-lg font-bold ${notification.type === 'error' ? 'bg-red-500' : 'bg-cyan-500 text-black'}`}
+          >
+            {notification.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="mobile-frame">
+        <div className="scroll-content">
+            
+            {/* Header */}
+            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col">
+                <span className="text-xs text-gray-500 font-bold uppercase tracking-widest">Streak</span>
+                <div className="flex items-center space-x-2">
+                    <span className="text-2xl">🔥</span>
+                    <span className="text-xl font-mono font-bold">{streak} Days</span>
+                </div>
+            </div>
+            <div className="flex gap-2">
+                <button onClick={() => setAppState('TRANSACTIONS')} className="p-3 bg-gray-800 rounded-full hover:bg-gray-700 transition">
+                    <History size={20} className="text-gray-400" />
+                </button>
+                <button onClick={exportReport} className="p-3 bg-gray-800 rounded-full hover:bg-gray-700 transition">
+                    <Download size={20} className="text-gray-400" />
+                </button>
+            </div>
+            </div>
+
+            {/* Stats Display - Hides when typing */}
+            <motion.div 
+                animate={{ opacity: inputType ? 0.2 : 1, scale: inputType ? 0.95 : 1 }}
+                className="flex flex-col items-center mb-6"
+            >
+                <span className="text-gray-400 text-sm mb-1">Today's Remaining Budget</span>
+                <div className={`text-5xl font-mono font-bold tracking-tighter ${themeColor}`}>
+                    {formatCurrency(remaining)}
+                </div>
+                
+                {/* Progress Bar */}
+                <div className="w-full h-2 bg-gray-800 rounded-full mt-6 overflow-hidden relative">
+                    <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min(Math.max(percentUsed, 0), 100)}%` }}
+                        className={`h-full absolute left-0 ${progressColor}`}
+                    />
+                </div>
+                <div className="flex justify-between w-full mt-2 text-xs text-gray-500 font-mono">
+                    <span>Net Spent: {formatCurrency(spentToday)}</span>
+                    <span>Limit: {formatCurrency(dailyBudgetLimit)}</span>
+                </div>
+            </motion.div>
+
+            {/* CHARACTER AREA - CENTERED */}
+            <div className="flex-1 flex flex-col items-center justify-center min-h-[250px] relative">
+                <MochiCat mood={catMood} />
+                <motion.div 
+                    key={getDialogue()} 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-6 bg-gray-800 px-6 py-3 rounded-tr-3xl rounded-bl-3xl rounded-tl-xl rounded-br-xl border border-gray-700 max-w-[90%]"
+                >
+                    <p className={`text-center font-bold ${themeColor}`}>{getDialogue()}</p>
+                </motion.div>
+            </div>
+
+            {/* Chart Area */}
+            <AnimatePresence>
+                {!inputType && (
+                    <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 160 }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="w-full bg-gray-800/50 rounded-2xl p-4 mt-4 border border-gray-800 overflow-hidden"
+                    >
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={chartData}>
+                                <Tooltip 
+                                    contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
+                                    cursor={{ stroke: '#374151' }}
+                                />
+                                <Line 
+                                    type="monotone" 
+                                    dataKey="spent" 
+                                    stroke="#22D3EE" 
+                                    strokeWidth={3} 
+                                    dot={false} 
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+
+        {/* FABs (Floating Action Buttons) - STICKY INSIDE FRAME */}
+        <AnimatePresence>
+            {!inputType && (
+                <motion.div 
+                    initial={{ y: 100 }}
+                    animate={{ y: 0 }}
+                    exit={{ y: 100 }}
+                    className="absolute bottom-8 left-0 right-0 flex justify-center items-center px-6 pointer-events-none z-40 gap-4"
+                >
+                    <button 
+                        onClick={() => setInputType('INCOME')}
+                        className="pointer-events-auto flex-1 bg-gray-800 text-green-400 p-5 rounded-2xl shadow-lg border border-gray-700 hover:bg-gray-700 active:scale-95 transition flex justify-center items-center gap-2"
+                    >
+                        <TrendingUp size={24} />
+                        <span className="font-bold">Income</span>
+                    </button>
+
+                    <button 
+                        onClick={() => setInputType('EXPENSE')}
+                        className="pointer-events-auto flex-[2] bg-cyan-400 text-black p-5 rounded-2xl shadow-lg shadow-cyan-400/20 hover:scale-105 active:scale-95 transition flex justify-center items-center gap-2"
+                    >
+                        <DollarSign size={24} strokeWidth={3} />
+                        <span className="font-bold">Spend</span>
+                    </button>
+                </motion.div>
+            )}
+        </AnimatePresence>
+
+        {/* INPUT DOCK (Slides up) - INSIDE FRAME & MINIMAL */}
+        <AnimatePresence>
+            {inputType && (
+                <motion.div 
+                    initial={{ y: '100%' }}
+                    animate={{ y: 0 }}
+                    exit={{ y: '100%' }}
+                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                    className="absolute bottom-0 left-0 right-0 bg-[#1E1E1E] rounded-t-3xl z-50 p-6 border-t border-gray-700 shadow-2xl"
+                >
+                    <div className="flex flex-col gap-4">
+                        <h3 className={`text-center font-bold text-sm uppercase tracking-wider ${inputType === 'INCOME' ? 'text-green-400' : 'text-red-400'}`}>
+                            {inputType === 'INCOME' ? 'Adding Income' : 'Adding Expense'}
+                        </h3>
+
+                        <div className="flex items-center gap-4 bg-gray-900 p-3 rounded-2xl border border-gray-700">
+                            <span className="text-2xl font-mono text-gray-500 pl-2">$</span>
+                            <input 
+                                autoFocus
+                                type="number" 
+                                className="w-full bg-transparent text-3xl text-white font-mono outline-none"
+                                placeholder="0.00"
+                                value={amountInput}
+                                onChange={(e) => setAmountInput(e.target.value)}
+                            />
+                        </div>
+
+                        <input 
+                            type="text" 
+                            className="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-white outline-none focus:border-cyan-400 transition"
+                            placeholder={inputType === 'INCOME' ? "Source?" : "For what?"}
+                            value={descInput}
+                            onChange={(e) => setDescInput(e.target.value)}
+                        />
+                        
+                        <div className="flex gap-3 mt-2">
+                            <button 
+                                onClick={() => { setInputType(null); setAmountInput(''); setDescInput(''); }}
+                                className="p-3 rounded-xl bg-gray-800 text-gray-400 font-bold hover:bg-gray-700 transition flex items-center justify-center flex-1"
+                            >
+                                <X size={24} />
+                            </button>
+                            <button 
+                                onClick={handleTransaction}
+                                className={`p-3 rounded-xl font-bold text-white shadow-lg transform active:scale-95 transition flex items-center justify-center flex-[3] ${inputType === 'INCOME' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}
+                            >
+                                <Check size={24} />
+                            </button>
+                        </div>
+                    </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+};
+
+export default App;
